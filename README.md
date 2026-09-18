@@ -39,3 +39,20 @@ The images vary in resolution, contrast, and noise levels, which reflects real-w
 clinical conditions. This variation makes preprocessing an essential step to ensure 
 consistency across the dataset. The dataset is organized into separate folders for healthy 
 and diseased images, enabling supervised learning.
+
+
+**Implementation Details**
+
+The system is implemented using Python and several open-source libraries: 
+• OpenCV: Image preprocessing and handling 
+• NumPy: Numerical operations 
+• scikit-image: HOG feature extraction 
+• scikit-learn: Machine learning models and evaluation 
+• Matplotlib: Visualization of results 
+The workflow begins with loading the dataset and applying preprocessing and 
+augmentation. HOG features are extracted from each image and stored as feature vectors. 
+These vectors are then used to train machine learning classifiers. 
+After training, the SVM model is saved to disk using the joblib library. This allows the 
+trained model to be reused for predicting new dental X-ray images without retraining. A 
+separate prediction function loads the saved model, processes a new image, extracts 
+features, and outputs the predicted class.
