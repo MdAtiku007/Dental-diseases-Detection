@@ -1,0 +1,138 @@
+# --------------------------------------------
+# Dental Disease Detection Using Image Processing
+# Traditional ML + HOG Features + SVM Classifier
+# --------------------------------------------
+
+import os
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, classification_report, ConfusionMatrixDisplay
+from skimage.feature import hog
+import joblib
+import warnings
+warnings.filterwarnings('ignore')
+
+# --------------------------------------------
+# STEP 1: Image Preprocessing
+# --------------------------------------------
+def preprocess_image(image_path, size=(128, 128)):
+    img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    img = cv2.resize(img, size)
+    img = cv2.GaussianBlur(img, (3, 3), 0)
+    return img
+
+# --------------------------------------------
+# STEP 2: Data Augmentation (Optional)
+# --------------------------------------------
+def augment_image(image):
+    augmented = []
+    # Rotate ±15 degrees
+    for angle in [-15, 15]:
+        M = cv2.getRotationMatrix2D((image.shape[1]//2, image.shape[0]//2), angle, 1)
+        rotated = cv2.warpAffine(image, M, (image.shape[1], image.shape[0]))
+        augmented.append(rotated)
+    # Horizontal flip
+    augmented.append(cv2.flip(image, 1))
+    return augmented
+
+# --------------------------------------------
+# STEP 3: Feature Extraction (HOG)
+# --------------------------------------------
+def extract_hog_features(image):
+    features, _ = hog(image, orientations=9, pixels_per_cell=(8, 8),
+                      cells_per_block=(2, 2), block_norm='L2-Hys', visualize=True)
+    return features
+
+# --------------------------------------------
+# STEP 4: Load Dataset and Extract Features
+# --------------------------------------------
+def load_dataset(dataset_path='dataset', augment=False):
+    features = []
+    labels = []
+    for label in os.listdir(dataset_path):
+        label_path = os.path.join(dataset_path, label)
+        for file in os.listdir(label_path):
+            img_path = os.path.join(label_path, file)
+            img = preprocess_image(img_path)
+            # Extract features
+            hog_feat = extract_hog_features(img)
+            features.append(hog_feat)
+            labels.append(label)
+            # Optional: add augmented images
+            if augment:
+                for aug_img in augment_image(img):
+                    hog_feat_aug = extract_hog_features(aug_img)
+                    features.append(hog_feat_aug)
+                    labels.append(label)
+    return np.array(features), np.array(labels)
+
+# --------------------------------------------
+# STEP 5: Train and Evaluate Model
+# --------------------------------------------
+def train_and_evaluate():
+    print("\n[INFO] Loading dataset and extracting features...")
+    X, y = load_dataset('dataset', augment=True)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    print(f"[INFO] Dataset size: {len(X)} images")
+    print("[INFO] Training models...")
+
+    models = {
+        "SVM (Linear)": SVC(kernel='linear', probability=True),
+        "Random Forest": RandomForestClassifier(n_estimators=100)
+    }
+
+    for name, model in models.items():
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        print(f"\n📊 {name} Results:")
+        print("Accuracy:", accuracy_score(y_test, y_pred))
+        print(classification_report(y_test, y_pred))
+        ConfusionMatrixDisplay.from_estimator(model, X_test, y_test)
+        plt.title(f"{name} - Confusion Matrix")
+        plt.show()
+
+        # Save best model (you can change which one)
+        if name == "SVM (Linear)":
+            joblib.dump(model, "svm_model.pkl")
+            print("[INFO] SVM model saved as svm_model.pkl")
+
+# --------------------------------------------
+# STEP 6: Prediction Function
+# --------------------------------------------
+def predict_image(image_path, model_path="svm_model.pkl"):
+    print("\n[INFO] Loading trained model...")
+    model = joblib.load(model_path)
+
+    img = preprocess_image(image_path)
+    features = extract_hog_features(img)
+    prediction = model.predict([features])[0]
+    print(f"🦷 Predicted Label: {prediction}")
+
+    # Display image with prediction
+    img_color = cv2.imread(image_path)
+    plt.imshow(cv2.cvtColor(img_color, cv2.COLOR_BGR2RGB))
+    plt.title(f"Predicted: {prediction}")
+    plt.axis('off')
+    plt.show()
+
+# --------------------------------------------
+# MAIN
+# --------------------------------------------
+if __name__ == "__main__":
+    print("==== Dental Disease Detection ====")
+    print("1. Train & Evaluate Model")
+    print("2. Predict on Single Image")
+    choice = input("Enter choice (1/2): ")
+
+    if choice == '1':
+        train_and_evaluate()
+    elif choice == '2':
+        img_path = input("Enter path of test image: ")
+        predict_image(img_path)
+    else:
+        print("Invalid choice.")
